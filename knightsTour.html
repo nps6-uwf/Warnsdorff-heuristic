@@ -1,0 +1,251 @@
+<!--  
+Knights tour with Warnsdorff’s heuristic.
+Author: Nick Sebasco
+Date: 1/31/2022
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=`, initial-scale=1.0">
+    <title>Knight's Tour</title>
+    <style>
+        * {
+            font-family: Cambria;
+            margin: 0; padding: 0;
+        }
+        body {
+            background: #ffffff;
+        }
+        .cell-text {
+            text-align: center;
+        }
+        table {
+            margin-left: auto;
+            margin-right: auto;
+        }
+        td {
+            text-align: center;
+            font-weight: 300;
+        }
+        h2 {
+            margin-top: 10px;
+            text-align: center;
+        }
+        h2 > span {
+            margin-left: 5px;
+            color: indigo;
+        }
+        img {
+            display: none;
+        }
+    </style>
+</head>
+<body>  
+    <table>
+        <tbody></tbody>
+    </table>
+    <h2>Depth <span>0</span></h2>
+    <img src="knight.png" alt="Knight">
+</body>
+    <script>
+        // Graph stuff
+        class Node {
+            constructor (name, connections = {}, htmlNode) {
+                this.defaultColor = htmlNode.style.background;
+                this.color = this.defaultColor;
+                this.name = name;
+                this.connections = {};
+                this.htmlNode = htmlNode;
+            }
+            addConnection (vertex, weight = 0) {
+                this.connections[vertex] = weight;
+            }
+            setColor(color, length, showText) {
+                let self = this;
+                this.color = color;
+                
+                setTimeout(function(){
+                    if (!showText) {
+                        self.htmlNode.querySelector("span").style.display = "none";
+                    } else {
+                        self.htmlNode.children[0].style.display = "inline-block";
+                    }
+                    self.htmlNode.style.background = color;
+                    moveKnight(self.htmlNode);
+                    updateDepth(length);
+                },Node.counter++ * Node.delay);
+            }
+        }
+        Node.counter = 0;
+        Node.delay = 300;
+
+        class Graph {
+            constructor (HTMLnodes, nodeColors = {"ivory": null, "gray": null}) {
+                this.HTMLnodes = HTMLnodes;
+                this.nodeColors = nodeColors;
+                this.nodes = {};
+                this.vertexCount = 0;
+            }
+            addNode(v) {
+                let node = new Node(v, {}, this.HTMLnodes[v]);
+                this.nodes[v] = node;
+                this.vertexCount++;
+                return node;
+            }
+            addEdge(v1, v2, weight = 0, bidirectional = false) {
+                if (!(v1 in this.nodes)) {
+                    this.addNode(v1);
+                }
+                if (!(v2 in this.nodes)) {
+                    
+                    this.addNode(v2);
+                }
+                this.nodes[v1].addConnection(v2, weight);
+                if (bidirectional) {
+                    this.nodes[v2].addConnection(v1, weight);
+                }
+            }
+            testColor(color) {
+                return color in this.nodeColors;
+            }
+            warnsdorff(node) {
+                let res = [];
+                for (let k in node.connections) {
+                    if ( this.testColor(this.nodes[k].color) ) {
+                        let i = 0;
+                        for (let l in this.nodes[k].connections) {
+                            if ( this.testColor(this.nodes[l].color) ) {
+                                i++;
+                            }
+                        }
+                        res.push([i, k]);
+                    }
+                }
+                return res.sort((a, b)=>{ return a[0] - b[0]; }).map((i)=>{return i[1];});
+            }
+             dfs (key, path = [], n = 0, depth = 10, activeColor = "red") {
+                path.push(key);
+                this.nodes[key].setColor(activeColor, path.length - 1, false);
+
+                let stop;
+
+                if (n < depth) {
+                    let connections = this.warnsdorff(this.nodes[key]);
+                    stop = false;
+                    for (let k of connections) {
+                        stop = this.dfs(k, path, n+1, depth, activeColor);
+                        if (stop) break;
+                    }
+                    if (!stop) {
+                        path.pop();
+                        this.nodes[key].setColor(this.nodes[key].defaultColor, path.length - 1, true);
+                    }   
+                }
+                else {
+                    stop = true;
+                }
+                return stop;
+            }
+        }
+        
+        function knightNeighborhood(x, y, N) {
+            return [[1,2],[1,-2],[-1, 2],[-1,-2],[2,1],[-2,1],[2,-1],[-2,-1]].map((i) => {
+                return [i[0]+x, i[1]+y];
+            }).filter((i) => {
+                return ((0 <= i[0]) && (i[0] < N)) &&  ((0 <= i[1]) && (i[1] < N));
+            });
+        }
+
+        function generateKnightGraph (N, HTMLnodes) {
+            const G = new Graph(HTMLnodes);
+            for (let i = 0; i < N; ++i) {
+                for (let j = 0; j < N; ++j) {
+                    let v1 = i * N + j;
+                    let neighborhood = knightNeighborhood(i, j, N);
+                    for (let k = 0; k < neighborhood.length; ++k ) {
+                        let pos = neighborhood[k];
+                        let v2 = (pos[0] * N) + pos[1];
+                        G.addEdge(v1, v2);
+                    }
+                }
+            }
+            return G;
+        }
+
+        // UI functions
+        function updateDepth(depth) {
+            document.querySelector("h2>span").innerText = depth;
+        }
+
+        function buildTable(tbody, N, size) {
+            let nodes = [];
+
+            // (i) set knight icon size
+            let img = document.querySelector("img");
+            img.style.width = .6*size + "px";
+            img.style.height = "auto";
+            img.style.display = "inline-block";
+
+            for (let i = 0; i < N; ++i) {
+                var tr = document.createElement("tr");
+                for (let j = 0; j < N; ++j) {
+                    var td = document.createElement("td");
+                    td.id = i*N + j;
+                    td.style.background = (i*N + j + i) % 2 ? "gray" : "ivory";
+                    td.style.width = size + "px";
+                    td.style.height = size + "px";
+                    var span = document.createElement("span");
+                    span.className = "cell-text"
+                    span.innerText = i*N + j;
+                    td.appendChild(span);
+                    tr.appendChild(td);
+                    nodes.push(td);
+                }  
+                tbody.appendChild(tr)
+            }
+            return nodes;
+        }
+
+        function setTopMargin(N, size, tbody) {
+            let table = tbody.parentNode;
+            table.style.marginTop = `${(window.innerHeight - size*N)/2}px`;
+        }
+        
+        function randint(low, high) {
+            return ~~(Math.random() * (high-low) + low);
+        }
+
+        function moveKnight(node) {
+            let piece = document.querySelector("img");
+            node.appendChild(
+                piece
+            );
+        }
+
+        // Main function
+        function main() {
+            const N = 8;
+            const depth = N*N - 1
+            const size = 60;
+            const location = randint(0, depth);
+            const tbody = document.querySelector("tbody");
+            const HTMLnodes = buildTable(tbody, N, size);
+            const G = generateKnightGraph(N, HTMLnodes);
+            const path = [];
+
+            setTopMargin(N, size, tbody);
+            moveKnight(HTMLnodes[location]);
+            G.dfs(location, path, 0, depth, "skyblue");
+            window.path = path;
+
+            console.log("Depth:", depth)
+            console.log("Start:",location);
+            console.log(G.nodes[location])
+        };
+
+        window.onload = main;
+    </script>
+</html>
